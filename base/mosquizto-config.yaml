@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquizto-config
+data:
+  DB_NAME: mosquizto-db
+  DB_USER: postgres
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  MEILI_SEARCH_HOST: http://meilisearch:7700
+  QDRANT_HOST: qdrant
+  QDRANT_PORT: "6334"

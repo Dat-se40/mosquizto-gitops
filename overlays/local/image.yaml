@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquizto-backend-deployemnt
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: mosquizto-backend
+          image: mosquizto-backend:local-001
+          imagePullPolicy: Never
+          startupProbe:
+            httpGet:
+              path: /v3/api-docs
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /v3/api-docs
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1Gi}

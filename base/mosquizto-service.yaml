@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquizto-service
+spec:
+  type: ClusterIP
+  selector:
+    app: mosquizto-backend
+  ports:
+    - name: mosquizto-backend
+      port: 8080

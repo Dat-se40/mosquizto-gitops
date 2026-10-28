@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquizto-backend-deployemnt
+  labels:
+    app: mosquizto-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mosquizto-backend
+  template:
+    metadata:
+      labels:
+        app: mosquizto-backend
+    spec:
+      containers:
+      - name: mosquizto-backend
+        image: mosquizto-backend
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: mosquizto-config
+        env:
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: mosquizto-config
+              key: DB_NAME
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?options=-c%20timezone=Asia/Ho_Chi_Minh"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: mosquizto-config
+              key: DB_USER
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: DB_PASSWORD
+        - name: SPRING_MAIL_ADDRESS
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: MAIL_ADDRESS
+        - name: SPRING_MAIL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: MAIL_USERNAME
+        - name: SPRING_MAIL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: MAIL_PASSWORD
+        - name: JWT_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: JWT_ACCESS_KEY
+        - name: JWT_REFRESH_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: JWT_REFRESH_KEY
+        - name: JWT_RESET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: JWT_RESET_KEY
+        - name: MEILI_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: MEILI_MASTER_KEY
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: GOOGLE_CLIENT_ID
+        - name: CLOUDINARY_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: CLOUDINARY_NAME
+        - name: CLOUDINARY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: CLOUDINARY_API_KEY
+        - name: CLOUDINARY_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: CLOUDINARY_API_SECRET
+        - name: WS_MESSAGE_TIME_OUT
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: WS_MESSAGE_TIME_OUT
+        - name: WS_CONNECT_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: WS_CONNECT_ENDPOINT
+        - name: SERVER_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: SERVER_NAME
+              optional: true
+        - name: APP_MAIL_PROVIDER
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: APP_MAIL_PROVIDER
+              optional: true
+        - name: SEND_GRID
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: SEND_GRID
+              optional: true
+        - name: MAIL_FROM
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: MAIL_FROM
+              optional: true
+        - name: MAIL_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mosquizto-secret
+              key: MAIL_NAME
+              optional: true
