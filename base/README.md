@@ -116,7 +116,7 @@ Kustomize thêm hash vào tên Secret và cập nhật reference trong Deploymen
 - Meilisearch và Qdrant được gọi trong quá trình khởi tạo backend. Dựng dependency trước khi cần kiểm tra startup; một lần apply toàn bộ có thể làm backend restart trong lúc dependency chưa Ready.
 - Redis giữ cả token, rate limit và idempotency, không chỉ cache. PVC không thay thế việc chọn chính sách persistence và backup.
 - Thiếu model ONNX thì embedding bị tắt; điều đó không tự tắt bean Qdrant.
-- Giá trị tài nguyên/PVC hiện dành cho lab. Chưa phải thiết kế HA hay sizing EKS.
+- Giá trị tài nguyên/PVC hiện dành cho môi trường local. Chưa phải thiết kế HA hay sizing EKS.
 
 ## Tham chiếu
 

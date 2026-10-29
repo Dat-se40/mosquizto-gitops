@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mosquizto-models
+spec:
+  # Single-node Minikube only. EKS needs a separately approved CSI/StorageClass.
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

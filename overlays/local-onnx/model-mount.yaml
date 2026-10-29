@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquizto-backend-deployemnt
+spec:
+  replicas: 1
+  # Avoid overlapping readers on different nodes with a local RWO claim.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: mosquizto-backend
+          envFrom:
+            - configMapRef:
+                name: mosquizto-config
+            - configMapRef:
+                name: mosquizto-model-config
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: mosquizto-models

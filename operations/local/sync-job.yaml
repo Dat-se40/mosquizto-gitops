@@ -1,0 +1,78 @@
+# Operation template only. Manual invocation; no Argo CD hooks or automatic reruns.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mosquizto-sync-template
+  namespace: mosquizto-local
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: mosquizto-sync
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: sync
+          image: mosquizto-backend:local-sync-002
+          imagePullPolicy: Never
+          args: ["--sync"]
+          envFrom:
+            - configMapRef:
+                name: mosquizto-config
+            - configMapRef:
+                name: mosquizto-model-config
+          env:
+            - name: SYNC_ENABLED
+              value: "true"
+            - name: SYNC_DRY_RUN
+              value: "true"
+            - name: SYNC_TARGET
+              value: all
+            - name: SYNC_CLEANUP
+              value: none
+            - name: SYNC_MAINTENANCE_CONFIRMED
+              value: "false"
+            - name: SYNC_BATCH_SIZE
+              value: "100"
+            - name: SYNC_MAX_ATTEMPTS
+              value: "1"
+            - name: SYNC_BATCH_PAUSE_MS
+              value: "100"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?options=-c%20timezone=Asia/Ho_Chi_Minh"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: mosquizto-config
+                  key: DB_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mosquizto-sync-secret
+                  key: DB_PASSWORD
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mosquizto-sync-secret
+                  key: MEILI_MASTER_KEY
+          resources:
+            # Provisional lab limits: measure ONNX native + heap before production.
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: mosquizto-models

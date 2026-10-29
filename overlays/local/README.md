@@ -65,7 +65,7 @@ kubectl --context=minikube get nodes
 kubectl --context=minikube get storageclass
 ```
 
-Node cần Ready; PVC dựa vào default StorageClass. Requests/limits hiện là mức lab, cần xem tài nguyên máy khi Pod Pending/OOMKilled, không coi chúng là sizing production.
+Node cần Ready; PVC dựa vào default StorageClass. Requests/limits hiện dành cho môi trường local. Kiểm tra tài nguyên máy khi Pod Pending/OOMKilled và điều chỉnh theo nhu cầu; các giá trị này chưa phải sizing production.
 
 ## 3. Tạo hai file env riêng
 
@@ -140,9 +140,9 @@ kubectl --context=minikube -n mosquizto-local port-forward service/mosquizto-ser
 - OpenAPI: `http://localhost:18080/v3/api-docs`.
 - Login: `POST http://localhost:18080/auth/login`, JSON chứa `username` và `password` của tài khoản test hợp lệ.
 
-`18080` là cổng trên máy bạn; backend trong container vẫn lắng nghe `8080`. `SERVER_URL` là địa chỉ app dùng cho Swagger/link email, không phải cổng cấu hình HTTP listener.
+`18080` là cổng trên máy local; backend trong container vẫn lắng nghe `8080`. `SERVER_URL` là địa chỉ app dùng cho Swagger/link email, không phải cổng cấu hình HTTP listener.
 
-Bạn cũng có thể dùng cách đã thực hành trên máy Windows:
+Trên Windows, có thể truy cập Service bằng Minikube:
 
 ```powershell
 minikube -p minikube service mosquizto-service -n mosquizto-local
@@ -193,7 +193,7 @@ kubectl --context=minikube -n kube-system logs deployment/metrics-server --tail=
 kubectl --context=minikube get apiservice v1beta1.metrics.k8s.io
 ```
 
-Trong phiên lab 28/10, Metrics Server cài từ manifest upstream lỗi chứng chỉ kubelet thiếu IP SAN. Thêm `--kubelet-insecure-tls` vào args Deployment Metrics Server trên Minikube đã khắc phục. Cờ này bỏ xác minh chứng chỉ kubelet, chỉ là lựa chọn cho lab; không sao chép làm mặc định EKS. Thay đổi addon này không nằm trong app overlay của repo. [Tài liệu Metrics Server](https://github.com/kubernetes-sigs/metrics-server#requirements).
+Nếu log báo lỗi chứng chỉ kubelet thiếu IP SAN, có thể thêm `--kubelet-insecure-tls` vào args của Deployment Metrics Server trên Minikube. Cờ này bỏ xác minh chứng chỉ kubelet và chỉ dành cho môi trường local; không dùng làm mặc định EKS. Thay đổi addon này không nằm trong app overlay của repo. [Tài liệu Metrics Server](https://github.com/kubernetes-sigs/metrics-server#requirements).
 
 Đọc lỗi workload:
 
@@ -215,14 +215,86 @@ Với Pod crash, dùng `get pods` lấy tên, rồi `logs TEN_POD --previous` đ
 - Pod Pending: xem PVC, StorageClass, requests và tài nguyên node.
 - OOMKilled: đo memory, kiểm tra limits và model ONNX nếu có.
 
-## 9. Những giới hạn còn lại trước EKS/GitOps
+## 9. Khởi động, dừng và gỡ môi trường local
 
-- Chưa có overlay EKS/Argo CD; Argo CD không đọc được các file env bị ignore trên máy Đạt.
+Nhấn **Ctrl+C** ở terminal đang giữ port-forward hoặc tunnel `minikube service` để đóng kết nối từ máy local. Đóng tunnel không dừng các Pod. Chọn một trong các thao tác dưới đây theo phạm vi cần dừng hoặc xóa.
+
+### A. Dừng và khởi động lại Minikube
+
+Dừng toàn bộ profile `minikube` và giữ dữ liệu để sử dụng lại:
+
+```powershell
+minikube -p minikube stop
+```
+
+Lệnh dừng container/VM của profile, giữ cấu hình cluster và dữ liệu trên disk. Tất cả workload trong profile đều dừng, bao gồm các namespace khác. Khởi động lại cùng profile:
+
+```powershell
+minikube -p minikube start
+kubectl --context=minikube -n mosquizto-local get pods,pvc
+```
+
+Nếu trước đó không scale/xóa resource thì Kubernetes sẽ chạy lại các workload theo desired state hiện có; thường không cần apply lại. Đợi các dependency và backend Ready rồi mở lại tunnel. [Minikube stop](https://minikube.sigs.k8s.io/docs/commands/stop/).
+
+### B. Tạm dừng Mosquizto, giữ cluster hoạt động
+
+Scale các Deployment trong namespace `mosquizto-local` về 0:
+
+```powershell
+kubectl --context=minikube -n mosquizto-local scale deployment --all --replicas=0
+kubectl --context=minikube -n mosquizto-local get deployments,pods,pvc
+```
+
+Pod sẽ được kết thúc; Deployment, Service, ConfigMap, Secret và PVC vẫn tồn tại. CPU/RAM của app được giải phóng nhưng tài nguyên của cluster/addon vẫn còn; disk của PVC và image không được giải phóng. PVC giữ file đã ghi trên disk, không tự bảo toàn mọi dữ liệu RAM chưa được Redis ghi xuống.
+
+Bật lại bằng cấu hình trong Git, từ thư mục gốc repo:
+
+```powershell
+kubectl --context=minikube apply -k ./overlays/local
+kubectl --context=minikube -n mosquizto-local rollout status deployment/postgres --timeout=180s
+kubectl --context=minikube -n mosquizto-local rollout status deployment/mosquizto-backend-deployemnt --timeout=360s
+```
+
+Overlay hiện khai báo mỗi Deployment một replica, nên apply khôi phục các replica về 1. Các file env thật và image backend trên node vẫn cần có. Khi triển khai qua Argo CD với self-heal, thay đổi replicas bằng tay có thể bị khôi phục theo cấu hình trong Git.
+
+Có thể thay `--all` bằng tên Deployment để dừng riêng một thành phần, nhưng backend hiện phụ thuộc PostgreSQL/Meilisearch/Qdrant lúc khởi động và dùng Redis cho auth/rate limit. Scale dependency về 0 không có nghĩa backend vẫn hoạt động đầy đủ. Xóa một Pod riêng cũng không phải cách tắt app, vì Deployment sẽ tạo Pod thay thế. [kubectl scale](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_scale/).
+
+### C. Gỡ Mosquizto khỏi cluster
+
+Thao tác này xóa các tài nguyên Mosquizto và có thể xóa dữ liệu lưu trữ. Nếu cần giữ dữ liệu, sử dụng cách A hoặc B. Kiểm tra các tài nguyên trong namespace trước khi xóa:
+
+```powershell
+kubectl --context=minikube -n mosquizto-local get deployments,services,configmaps,secrets,pvc
+```
+
+Lệnh sau xóa **toàn bộ namespace `mosquizto-local`**, gồm các workload, Service, ConfigMap, mọi Secret và PVC trong namespace:
+
+```powershell
+kubectl --context=minikube delete namespace mosquizto-local
+```
+
+PVC bị xóa; nếu PV có reclaim policy `Delete` như cấu hình storage thông dụng trên Minikube thì dữ liệu lưu trữ tương ứng cũng bị xóa. Thao tác giữ lại file source, file env trên máy, image trong node và các namespace khác.
+
+**Không dùng `kubectl delete -k ./overlays/local` để kỳ vọng giữ dữ liệu**: overlay cũng chứa Namespace và các PVC, nên lệnh đó có thể xóa luôn chúng. Xóa theo overlay còn cần đủ file env để render. Khi đã xóa sạch, muốn dựng lại thì làm lại các bước render/apply và kiểm tra ở mục 5; database mới sẽ được khởi tạo/migrate lại.
+
+### D. Xóa profile Minikube
+
+Xóa **toàn bộ cluster local** khi cần tạo lại từ đầu. Phạm vi bao gồm Mosquizto và mọi workload khác trong profile:
+
+```powershell
+minikube -p minikube delete
+```
+
+Profile, workload, dữ liệu trong cluster và kho image bên trong node bị mất. Source/file env ngoài cluster vẫn còn. Lần sau cần tạo profile, cài lại addon cần thiết, build/load lại backend image nếu cần và apply manifests. Không thêm `--all` hoặc `--purge` cho việc dọn riêng profile này. [Minikube delete](https://minikube.sigs.k8s.io/docs/commands/delete/).
+
+## 10. Những giới hạn còn lại trước EKS/GitOps
+
+- Chưa có overlay EKS/Argo CD; Argo CD không đọc được các file env bị ignore trên máy local.
 - Qdrant vẫn dùng `latest` giống Compose; cần chốt version/digest đã test trước khi bàn giao.
-- Database/search đang chạy một instance cho lab, chưa có HA/backup hoàn chỉnh. Giữ PVC không thay thế backup.
+- Database/search đang chạy một instance cho môi trường local, chưa có HA/backup hoàn chỉnh. Giữ PVC không thay thế backup.
 - Chưa có health endpoint chuyên biệt; Qdrant readiness chỉ thử cổng gRPC, không kiểm tra collection.
 - PostgreSQL, Redis và search placement trên EKS, credentials, storage/CSI, ingress và monitoring cần phối hợp nhóm trước khi triển khai cloud.
-- Flow cuối: Jenkins cập nhật GitOps repo, Argo CD reconcile. Các lệnh apply local trong tài liệu dùng để học/kiểm chứng trên Minikube.
+- Flow cuối: Jenkins cập nhật GitOps repo, Argo CD reconcile. Các lệnh apply local trong tài liệu dùng để triển khai và kiểm chứng trên Minikube.
 
 ## Tham chiếu
 
