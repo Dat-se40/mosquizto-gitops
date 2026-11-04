@@ -20,6 +20,16 @@ kubectl --context=mosquizto-eks apply -f bootstrap/eks/namespace.yaml
 
 Script kiểm tra các key bắt buộc rồi truyền qua stdin để cấp `mosquizto-secret` và Secret nhỏ hơn `mosquizto-sync-secret`. Argo CD không quản lý hai Secret này. Khi chủ động thay đổi Secret runtime, cần restart backend để nhận biến môi trường mới.
 
+Backend hiện nhận ConfigMap qua biến môi trường. Vì vậy, khi push thay đổi như `SERVER_URL` trong `config.yaml`, Argo CD cập nhật ConfigMap nhưng Pod đang chạy vẫn giữ giá trị cũ. Sau khi Application đã sync đúng commit, rollout backend và kiểm tra lại:
+
+```powershell
+kubectl --context=mosquizto-eks -n mosquizto-eks rollout restart deployment/mosquizto-backend-deployemnt
+kubectl --context=mosquizto-eks -n mosquizto-eks rollout status deployment/mosquizto-backend-deployemnt --timeout=360s
+kubectl --context=mosquizto-eks -n mosquizto-eks exec deployment/mosquizto-backend-deployemnt -- printenv SERVER_URL
+```
+
+`SERVER_URL` cần là URL public có dấu `/` cuối nếu muốn link xác nhận email dùng địa chỉ public. Email đã gửi trước khi rollout vẫn giữ link được tạo lúc đó; restart ứng dụng không sửa nội dung email cũ.
+
 ## 3. Kiểm tra YAML và cài Argo CD
 
 ```powershell
