@@ -11,4 +11,4 @@ patches:
     patch: |-
       - op: replace
         path: /spec/source/targetRevision
-        value: codex/eks-argocd
+        value: eks-argocd

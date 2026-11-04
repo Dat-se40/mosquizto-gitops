@@ -1,97 +1,78 @@
-# Mosquizto on EKS (lab)
+# Triển khai Mosquizto trên EKS cho môi trường lab
 
-Run commands from the GitOps repository root with AWS credentials configured for
-the cluster account. Always pass the EKS context explicitly. Five services run
-in `mosquizto-eks`; the database is new and initialized by existing Flyway migrations.
-Jenkins CI automation and public ingress are outside this milestone.
+Các lệnh PowerShell bên dưới chạy từ **thư mục gốc `mosquizto-gitops`**. Cần cấu hình AWS credentials cho đúng tài khoản và luôn truyền rõ context EKS. Năm dịch vụ chạy trong namespace `mosquizto-eks`; PostgreSQL mới được khởi tạo bằng các migration Flyway hiện có. Jenkins CI tự động và truy cập công khai nằm ngoài chặng này.
 
-## Prerequisites
+## 1. Điều kiện trước khi triển khai
 
-- Two Ready workers, healthy CoreDNS/CNI, working cluster DNS.
-- EBS CSI and `mosquizto-gp3`, provisioned from the infra repository's
-  `kubernetes/storage` tooling. A PVC write/recreate/read check must pass first.
-- Backend built from the recorded Git commit with `INCLUDE_EMBEDDING_MODEL=true`,
-  Linux amd64; model/tokenizer SHA-256 verified as UID 10001.
-- Immutable image in private ECR. The `images` entry in this overlay must contain
-  the verified registry digest. Both the backend and manual sync Job use it.
+- Hai worker `Ready`, CoreDNS/CNI hoạt động và DNS trong cluster phân giải được.
+- Có EBS CSI và StorageClass `mosquizto-gp3`, được cài bằng bộ công cụ `kubernetes/storage` trong repo infra. Phải kiểm tra được ghi dữ liệu vào PVC, tạo lại Pod và đọc lại dữ liệu trước khi triển khai ứng dụng.
+- Backend được build từ commit nguồn đã ghi nhận, nền tảng Linux amd64, với `INCLUDE_EMBEDDING_MODEL=true`; kiểm tra SHA-256 model/tokenizer và chạy bằng UID 10001.
+- Image nằm trong ECR private với tag bất biến. Trường `images` của overlay phải chứa digest đã xác minh; backend và Sync Job dùng cùng digest này.
 
-## Runtime secrets (outside Git and Argo CD)
+## 2. Cấp Secret riêng ngoài Git và Argo CD
 
-Copy `base/.secret.env.example` to `overlays/eks/.secret.env`, supply valid
-integration settings and generate fresh DB/JWT/Meilisearch credentials for EKS.
-Do not replace a password after PostgreSQL has initialized without rotating it
-in PostgreSQL too. Do not print or commit this file or a rendered Secret.
+Copy `base/.secret.env.example` thành `overlays/eks/.secret.env`, điền cấu hình tích hợp hợp lệ và tạo mới mật khẩu DB, khóa JWT, khóa Meilisearch cho EKS. Sau khi PostgreSQL đã khởi tạo, đổi mật khẩu trong Secret phải đi kèm đổi mật khẩu trong PostgreSQL. Không in hoặc commit file env thật hay Secret đã render.
 
 ```powershell
 kubectl --context=mosquizto-eks apply -f bootstrap/eks/namespace.yaml
 ./operations/eks/Set-RuntimeSecrets.ps1 -Context mosquizto-eks
 ```
 
-The script checks required keys and provisions `mosquizto-secret` plus the
-smaller `mosquizto-sync-secret` through stdin. Argo CD does not manage either
-Secret. After an intentional runtime-secret rotation, explicitly restart the
-backend to load new environment values.
+Script kiểm tra các key bắt buộc rồi truyền qua stdin để cấp `mosquizto-secret` và Secret nhỏ hơn `mosquizto-sync-secret`. Argo CD không quản lý hai Secret này. Khi chủ động thay đổi Secret runtime, cần restart backend để nhận biến môi trường mới.
 
-## Validate and bootstrap
+## 3. Kiểm tra YAML và cài Argo CD
 
 ```powershell
+cd D:\uselessTool\DevOps\NT548\mosquizto-gitops
 kubectl kustomize overlays/eks | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Render failed' }
+if ($LASTEXITCODE -ne 0) { throw 'Không render được overlay' }
 kubectl --context=mosquizto-eks apply --dry-run=server -k overlays/eks
-if ($LASTEXITCODE -ne 0) { throw 'Server validation failed' }
+if ($LASTEXITCODE -ne 0) { throw 'Kiểm tra phía server thất bại' }
 ./bootstrap/Install-ArgoCD.ps1 -Context mosquizto-eks
-kubectl --context=mosquizto-eks apply -k bootstrap/eks
 ```
 
-Publish the verified overlay to `main` before syncing. The AppProject permits
-only this repository, the application namespace, Deployments, Services,
-ConfigMaps and PVCs. Namespaces, Secrets, storage and Argo CD itself are bootstrap
-resources. Review the first diff and sync manually in the UI:
+Dry-run chỉ kiểm tra YAML, chưa tạo workload. Các file có trên máy local cũng chưa chắc đã có trên nhánh Git mà Argo CD đang đọc. Cần chọn đúng nguồn Git ở bước tiếp theo rồi sync qua Argo CD.
 
-While the PR is still under review, use the review bootstrap instead of the
-`bootstrap/eks` command above. It changes only the Application's source branch;
-`main` remains unchanged:
+## 4. Triển khai thử từ nhánh review hiện tại
+
+Khi PR chưa được merge, dùng bootstrap sau để Application đọc nhánh `eks-argocd`; `main` được giữ nguyên:
 
 ```powershell
 kubectl --context=mosquizto-eks apply -k bootstrap/eks-review
 kubectl --context=mosquizto-eks -n argocd get application mosquizto-eks
 ```
 
-Wait until there are no manifest-generation errors and the Application is
-OutOfSync. A dry-run only validates manifests; creating the Application does not
-create workloads while automated sync is disabled. Request a manual Argo CD sync:
+Đợi Application hết lỗi sinh manifest và chuyển sang `OutOfSync`. Bootstrap này dùng chế độ sync thủ công, nên chỉ tạo Application chưa làm xuất hiện Deployment/Service của ứng dụng. Yêu cầu Argo CD sync bằng:
 
 ```powershell
 kubectl --context=mosquizto-eks -n argocd patch application mosquizto-eks --type=merge --patch-file operations/eks/sync-application.yaml
 ```
 
-Inspect the Application's `status.operationState` for completion/errors, then
-check rollout. Reapplying `bootstrap/eks` selects `main` again, so do that only
-after the reviewed overlay has been merged into `main`.
+Kiểm tra `status.operationState` của Application để biết thành công hoặc lỗi rồi kiểm tra rollout. AppProject chỉ cho phép repo này, namespace ứng dụng và các loại Deployment, Service, ConfigMap, PVC. Namespace, Secret, storage và bản thân Argo CD được chuẩn bị riêng.
 
-For the UI, keep this port-forward running in a separate terminal:
+Muốn mở giao diện Argo CD, giữ lệnh sau chạy trong một terminal riêng rồi truy cập `https://localhost:18443`:
 
 ```powershell
 kubectl --context=mosquizto-eks -n argocd port-forward service/argocd-server 18443:443
 ```
 
-After acceptance, enable automated sync with self-heal in the tracked Application;
-leave prune disabled. PVCs also carry `Prune=false,Delete=false`. The Application
-has no cascading-deletion finalizer. Never put manual operation templates in the
-Application source path or register them as Argo CD hooks.
-
-For the approved review-branch deployment, enable self-heal explicitly after the
-first manual sync and smoke tests:
+Sau lần sync thủ công và kiểm thử thành công, bật tự động đồng bộ và tự sửa drift cho nhánh review:
 
 ```powershell
 kubectl --context=mosquizto-eks apply -k bootstrap/eks-review-selfheal
 ```
 
-This keeps the source on `codex/eks-argocd`, enables automatic reconciliation and
-leaves prune disabled. `bootstrap/eks-review` selects manual mode again; the
-`bootstrap/eks` definition remains manual and selects `main` for after review.
+Nguồn Git vẫn là `eks-argocd`, `selfHeal=true`, `prune=false`. Áp dụng lại `bootstrap/eks-review` sẽ quay về sync thủ công. Các PVC có thêm `Prune=false,Delete=false`; Application không có finalizer xóa tài nguyên theo dây chuyền. Không đưa các Job thao tác thủ công vào đường dẫn Application hoặc đăng ký chúng làm Argo CD hook.
 
-## Verify the application and ONNX
+**Chỉ sau khi overlay đã được merge vào `main`**, mới dùng:
+
+```powershell
+kubectl --context=mosquizto-eks apply -k bootstrap/eks
+```
+
+Lệnh này chọn lại `main` và chế độ sync thủ công. Nếu nhánh đó chưa có `overlays/eks`, Argo CD sẽ báo `app path does not exist`.
+
+## 5. Kiểm tra ứng dụng và ONNX
 
 ```powershell
 kubectl --context=mosquizto-eks -n mosquizto-eks get deploy,pods,svc,pvc
@@ -99,36 +80,20 @@ kubectl --context=mosquizto-eks -n mosquizto-eks rollout status deployment/mosqu
 kubectl --context=mosquizto-eks -n mosquizto-eks port-forward service/mosquizto-service 18080:8080
 ```
 
-Open `/swagger-ui/index.html` and `/v3/api-docs` on `http://localhost:18080`.
-Check valid login and invalid-login HTTP 401. Confirm `Embedding ready` in backend
-logs; HTTP readiness alone does not prove inference works.
+Giữ terminal port-forward mở. Truy cập `/swagger-ui/index.html` và `/v3/api-docs` tại `http://localhost:18080`. Kiểm tra đăng nhập hợp lệ thành công và thông tin sai trả HTTP 401. Log backend cần có `Embedding ready`; HTTP readiness chưa chứng minh được ONNX suy luận thành công.
 
 ```powershell
 ./operations/eks/Start-Sync.ps1 -Context mosquizto-eks
-# Inspect the completed Job/report before running the write operation:
+# Chỉ chạy ghi thật sau khi đã xem kết quả Job dry-run:
 ./operations/eks/Start-Sync.ps1 -Context mosquizto-eks -Write
 ```
 
-Use the Job name printed by each command for `kubectl logs` and `kubectl wait`.
-The script rejects a mismatch between the overlay's digest and the live backend.
-Jobs use the bundled model, separate sync Secret and no model PVC. Dry-run is
-the default; cleanup is disabled. Verify collection/document/point counts after
-the write, and finite, normalized 384-dimensional vectors in Qdrant.
+Dùng tên Job mà script in ra để xem `kubectl logs` và `kubectl wait`. Script từ chối khi digest của overlay khác image backend đang chạy. Job dùng model trong image, Secret riêng và không dùng PVC model. Mặc định là dry-run, không dọn/xóa dữ liệu mồ côi. Sau lượt ghi thật, đối chiếu số collection/document/point và kiểm tra vector Qdrant có 384 phần tử hữu hạn, đã chuẩn hóa.
 
-## Data, resources and rollback
+## 6. Dữ liệu, tài nguyên và quay lui
 
-PVCs: PostgreSQL 2Gi; Redis, Meilisearch and Qdrant 1Gi each, RWO. Each dependency
-has one replica and Recreate strategy. There is no HA or backup guarantee.
-Retain means deleting a PVC leaves a billable volume for explicit recovery or
-cleanup by its owner. Recreate PostgreSQL's Pod and verify the same database
-contents to exercise persistence; never delete its PVC for this check.
+PVC PostgreSQL 2Gi; Redis, Meilisearch và Qdrant mỗi dịch vụ 1Gi, kiểu RWO. Mỗi dependency có một replica và chiến lược `Recreate`. Đây chưa phải cấu hình HA hoặc cơ chế backup. Chính sách `Retain` giữ lại volume có tính phí sau khi PVC bị xóa, cần người quản lý chủ động khôi phục hoặc dọn. Khi kiểm tra persistence, chỉ tạo lại Pod PostgreSQL rồi so sánh dữ liệu; giữ nguyên PVC.
 
-Initial app requests total 600m CPU / 1088Mi memory. Measure ONNX startup and
-inference and include monitoring, Argo CD and system Pods in capacity checks.
-The current startup/readiness probe checks `/v3/api-docs`, not dependency health.
-All application Services remain ClusterIP; no public load balancer is created.
+Tổng requests khởi đầu của năm dịch vụ là 600m CPU và 1088Mi RAM. Cần đo lúc ONNX khởi tạo/suy luận và tính thêm monitoring, Argo CD, Pod hệ thống khi đánh giá tài nguyên. Probe startup/readiness hiện kiểm tra `/v3/api-docs`, chưa đánh giá đầy đủ dependency. Các Service ứng dụng đều là ClusterIP, không tạo Load Balancer công khai.
 
-Rollback by reverting the GitOps commit to a previously verified image digest
-and compatible model/config, then let Argo CD reconcile. Check Flyway backward
-compatibility first. Rollback does not undo database migrations or search-store
-writes. Keep PVCs and pin dependency images before changing them.
+Quay lui bằng cách revert commit GitOps về image digest và cấu hình/model tương thích đã được kiểm chứng, rồi để Argo CD reconcile. Kiểm tra khả năng tương thích ngược của Flyway trước. Quay lui workload không hoàn tác migration database hoặc dữ liệu đã ghi vào search store. Giữ PVC và pin phiên bản image dependency trước khi nâng cấp.
