@@ -48,6 +48,29 @@ only this repository, the application namespace, Deployments, Services,
 ConfigMaps and PVCs. Namespaces, Secrets, storage and Argo CD itself are bootstrap
 resources. Review the first diff and sync manually in the UI:
 
+While the PR is still under review, use the review bootstrap instead of the
+`bootstrap/eks` command above. It changes only the Application's source branch;
+`main` remains unchanged:
+
+```powershell
+kubectl --context=mosquizto-eks apply -k bootstrap/eks-review
+kubectl --context=mosquizto-eks -n argocd get application mosquizto-eks
+```
+
+Wait until there are no manifest-generation errors and the Application is
+OutOfSync. A dry-run only validates manifests; creating the Application does not
+create workloads while automated sync is disabled. Request a manual Argo CD sync:
+
+```powershell
+kubectl --context=mosquizto-eks -n argocd patch application mosquizto-eks --type=merge --patch-file operations/eks/sync-application.yaml
+```
+
+Inspect the Application's `status.operationState` for completion/errors, then
+check rollout. Reapplying `bootstrap/eks` selects `main` again, so do that only
+after the reviewed overlay has been merged into `main`.
+
+For the UI, keep this port-forward running in a separate terminal:
+
 ```powershell
 kubectl --context=mosquizto-eks -n argocd port-forward service/argocd-server 18443:443
 ```
@@ -56,6 +79,17 @@ After acceptance, enable automated sync with self-heal in the tracked Applicatio
 leave prune disabled. PVCs also carry `Prune=false,Delete=false`. The Application
 has no cascading-deletion finalizer. Never put manual operation templates in the
 Application source path or register them as Argo CD hooks.
+
+For the approved review-branch deployment, enable self-heal explicitly after the
+first manual sync and smoke tests:
+
+```powershell
+kubectl --context=mosquizto-eks apply -k bootstrap/eks-review-selfheal
+```
+
+This keeps the source on `codex/eks-argocd`, enables automatic reconciliation and
+leaves prune disabled. `bootstrap/eks-review` selects manual mode again; the
+`bootstrap/eks` definition remains manual and selects `main` for after review.
 
 ## Verify the application and ONNX
 
