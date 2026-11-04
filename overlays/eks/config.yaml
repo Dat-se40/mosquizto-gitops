@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: mosquizto-config
 data:
-  SERVER_URL: http://localhost:18080/
+  SERVER_URL: http://a87578752fb5541cbbcac1e6420a5279-1872287019.us-east-1.elb.amazonaws.com:8080/
   SERVER_NAME: mosquizto-eks-lab
