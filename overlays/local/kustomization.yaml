@@ -5,14 +5,11 @@ namespace: mosquizto-local
 resources:
   - ../../base
   - namespace.yaml
-  - redis.yaml
-  - meilisearch.yaml
-  - qdrant.yaml
+  - ../../dependencies
 secretGenerator:
   - name: mosquizto-secret
-    behavior: merge
     envs:
-      - .local.secret.env
+      - .runtime.secret.env
 patches:
   - path: image.yaml
   - path: mosquizto-config.yaml

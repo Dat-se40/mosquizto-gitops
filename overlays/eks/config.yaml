@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquizto-config
+data:
+  SERVER_URL: http://localhost:18080/
+  SERVER_NAME: mosquizto-eks-lab

@@ -4,6 +4,7 @@ Kubernetes manifests và Kustomize cho backend Mosquizto của đồ án NT548.
 
 - [Cấu trúc base, mạng và cách cấp cấu hình](base/README.md).
 - [Chạy trên Minikube, kiểm tra API và xử lý lỗi](overlays/local/README.md).
+- [Triển khai EKS qua Argo CD, ECR và ONNX trong image](overlays/eks/README.md).
 - [Khởi động, dừng và gỡ môi trường local](overlays/local/README.md#9-khởi-động-dừng-và-gỡ-môi-trường-local).
 - [Source backend và Dockerfile](https://github.com/Dat-se40/mosquizto-backend).
 
@@ -16,16 +17,27 @@ base/
   postgres.yaml
   .secret.env.example
   README.md
+dependencies/
+  kustomization.yaml
+  redis.yaml
+  meilisearch.yaml
+  qdrant.yaml
 overlays/local/
   kustomization.yaml
   namespace.yaml
   image.yaml
   mosquizto-config.yaml
-  redis.yaml
-  meilisearch.yaml
-  qdrant.yaml
   .local.secret.env.example
   README.md
+overlays/eks/
+  kustomization.yaml
+  backend.yaml
+  config.yaml
+  model-config.yaml
+bootstrap/eks/
+  namespace.yaml
+  project.yaml
+  application.yaml
 ```
 
 ## Phạm vi hiện tại
@@ -34,10 +46,10 @@ Overlay `local` chạy backend, PostgreSQL, Redis, Meilisearch và Qdrant trong 
 
 Kiểm tra thủ công trên Minikube ngày 28–29/10/2026 đã xác nhận cả năm Deployment Ready, Swagger/OpenAPI trả HTTP 200, đăng nhập bằng tài khoản seed thành công qua Postman và username không tồn tại trả HTTP 401. Chưa kiểm thử toàn bộ CRUD, search, embedding hoặc các dịch vụ mail/media bên ngoài.
 
-Repo hiện chưa có overlay EKS hay Argo CD Application. Registry/image tag, nơi chạy database trên EKS, secrets management và ownership add-on vẫn cần chốt với nhóm. Flow tích hợp dự kiến là Jenkins cập nhật image reference trong repo này, Argo CD reconcile lên cluster.
+Overlay `eks` dùng namespace `mosquizto-eks`, bốn dependency trong cluster với PVC gp3, backend một replica và model ONNX trong image ECR pin bằng digest. Secret EKS được cấp riêng ngoài Git; Argo CD theo dõi `overlays/eks` trên `main`. Jenkins tự động cập nhật GitOps và URL public là các chặng tiếp theo. Xem hướng dẫn EKS để biết prerequisites, kiểm chứng và rollback; có manifests không đồng nghĩa đã nghiệm thu deployment.
 
 ## Bắt đầu
 
-Đọc [hướng dẫn local](overlays/local/README.md), tạo hai file env riêng từ các file `.example`, điền giá trị hợp lệ rồi render overlay. Các file ví dụ chỉ chứa placeholder; các giá trị riêng thật không được commit.
+Đọc [hướng dẫn local](overlays/local/README.md), tạo hai file env riêng từ các file `.example`, điền giá trị hợp lệ, chạy `operations/local/Update-RuntimeEnv.ps1` rồi render overlay. Các file ví dụ chỉ chứa placeholder; các giá trị riêng thật không được commit. Base không đọc env file hay tạo Secret.
 
 Luôn chọn overlay khi triển khai. Base là phần cấu hình tái sử dụng, chưa phải môi trường triển khai độc lập.

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Context = 'minikube',
-    [string]$EnvFile = (Join-Path $PSScriptRoot '../../base/.secret.env')
+    [string]$EnvFile = (Join-Path $PSScriptRoot '../../overlays/local/.runtime.secret.env')
 )
 $ErrorActionPreference = 'Stop'
 $selected = @{}

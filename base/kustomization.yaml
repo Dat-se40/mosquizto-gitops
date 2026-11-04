@@ -5,7 +5,3 @@ resources:
   - mosquizto-config.yaml
   - postgres.yaml
   - mosquizto-service.yaml
-secretGenerator:
-  - name: mosquizto-secret
-    envs:
-      - .secret.env

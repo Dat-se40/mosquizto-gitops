@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: mosquizto
+  namespace: argocd
+spec:
+  description: Mosquizto EKS lab workloads only
+  sourceRepos:
+    - https://github.com/Dat-se40/mosquizto-gitops.git
+  destinations:
+    - namespace: mosquizto-eks
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: PersistentVolumeClaim
