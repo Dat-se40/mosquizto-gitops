@@ -6,7 +6,7 @@ Base cung cấp cấu hình được overlay tái sử dụng. Không apply tr�
 
 ## 1. Các file và trách nhiệm
 
-- [kustomization.yaml](kustomization.yaml): đăng ký resources và tạo Secret từ `.secret.env`.
+- [kustomization.yaml](kustomization.yaml): đăng ký resources dùng chung; không đọc env file hay tạo Secret.
 - [mosquizto-deployment.yaml](mosquizto-deployment.yaml): Pod template của backend, selector/labels, biến môi trường và tham chiếu cấu hình.
 - [mosquizto-service.yaml](mosquizto-service.yaml): ClusterIP Service tên `mosquizto-service`, port `8080`. Không ghi `targetPort` thì mặc định bằng `port`, ở đây là `8080`.
 - [mosquizto-config.yaml](mosquizto-config.yaml): database name/user và địa chỉ dependency không bí mật.
@@ -71,8 +71,9 @@ flowchart LR
     base["ConfigMap base\nDB và host/port dependency"] --> config["ConfigMap sau Kustomize"]
     overlay["Patch ConfigMap local\nSERVER_URL"] --> config
     config -->|"envFrom.configMapRef"| env["Biến môi trường container"]
-    shared["base/.secret.env"] --> generator["secretGenerator / merge"]
-    local["local/.local.secret.env"] --> generator
+    shared["base/.secret.env"] --> merge["Update-RuntimeEnv.ps1"]
+    local["local/.local.secret.env"] --> merge
+    merge --> runtime["local/.runtime.secret.env"] --> generator["secretGenerator ở overlay local"]
     generator --> secret["mosquizto-secret + hash"]
     secret -->|"env.valueFrom.secretKeyRef\nchỉ key cần dùng"| env
     env --> app["Spring Boot / Java"]
@@ -95,7 +96,7 @@ Kubernetes ghép các biến đã có từ ConfigMap/`env` khi tạo container. 
 
 ## 5. Secret và file env mẫu
 
-Thực hiện các bước copy/điền file theo [README local](../overlays/local/README.md). Generator ở base đọc `.secret.env`; overlay local merge `.local.secret.env`. Cả hai file thật phải tồn tại trên máy render, dù overlay chỉ override một key.
+Thực hiện các bước copy/điền file theo [README local](../overlays/local/README.md). Chạy `operations/local/Update-RuntimeEnv.ps1` để hợp nhất base và local (local ghi đè key trùng) vào `.runtime.secret.env` được Git ignore. Generator chỉ nằm ở overlay local và đọc file đã hợp nhất đó. Base và overlay EKS render được mà không cần file env; EKS tham chiếu Secret được cấp ngoài Git.
 
 - `DB_PASSWORD`: password khởi tạo PostgreSQL, backend phải dùng cùng giá trị.
 - `JWT_ACCESS_KEY`, `JWT_REFRESH_KEY`, `JWT_RESET_KEY`: ba key Base64 độc lập. Có thể sinh từng key bằng `openssl rand -base64 48` nếu đã cài OpenSSL.
@@ -106,7 +107,7 @@ Thực hiện các bước copy/điền file theo [README local](../overlays/loc
 
 File ví dụ chỉ có placeholder; không bảo đảm app chạy với các chuỗi `REPLACE_WITH_...`. Backend có một số bean đọc cấu hình ngay khi startup, nên không mặc định tính năng chưa dùng thì có thể bỏ key. `SEND_GRID` có thể rỗng khi chọn SMTP; khi chọn SendGrid phải cấp API key hợp lệ.
 
-Kustomize thêm hash vào tên Secret và cập nhật reference trong Deployment. Sửa một key trong Secret dùng chung có thể rollout cả các workload đang tham chiếu nó. Base64 không phải mã hóa bảo mật; không commit Secret đã render, file env thật hay private key.
+Ở local, Kustomize thêm hash vào tên Secret và cập nhật reference trong Deployment. Sau khi sửa env phải chạy lại script hợp nhất trước khi render/apply. EKS dùng Secret tên cố định; rotation cần restart workload rõ ràng. Base64 không phải mã hóa bảo mật; không commit Secret đã render, file env thật hay private key.
 
 ## 6. Lưu trữ, startup và giới hạn của base
 

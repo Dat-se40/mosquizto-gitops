@@ -6,11 +6,11 @@ Các lệnh PowerShell dưới đây chạy từ **thư mục gốc `mosquizto-g
 
 ## 1. Overlay này bổ sung gì?
 
-- [kustomization.yaml](kustomization.yaml): dùng base, thêm namespace/dependency local, merge Secret và đăng ký patches.
+- [kustomization.yaml](kustomization.yaml): dùng base và dependency dùng chung, thêm namespace, tạo Secret từ env hợp nhất và đăng ký patches.
 - [namespace.yaml](namespace.yaml): namespace `mosquizto-local`.
 - [image.yaml](image.yaml): backend image `mosquizto-backend:local-001`, `imagePullPolicy: Never`, một replica, tài nguyên và HTTP startup/readiness probes.
 - [mosquizto-config.yaml](mosquizto-config.yaml): patch `SERVER_URL=http://localhost:18080/` cho truy cập qua port-forward bên dưới.
-- [redis.yaml](redis.yaml), [meilisearch.yaml](meilisearch.yaml), [qdrant.yaml](qdrant.yaml): workload, Service và PVC riêng cho dependency local.
+- [dependencies](../../dependencies): workload, Service và PVC cho Redis, Meilisearch và Qdrant, dùng chung với EKS.
 - [.local.secret.env.example](.local.secret.env.example): mẫu override các key env của base, hiện minh họa `SERVER_NAME`.
 
 ```mermaid
@@ -81,6 +81,15 @@ if (-not (Test-Path overlays/local/.local.secret.env)) {
 ```
 
 Mở hai file thật và điền giá trị hợp lệ theo [hướng dẫn base](../../base/README.md#5-secret-và-file-env-mẫu). File local override key trùng tên từ base; giữ các key chung ở base, chỉ ghi phần khác biệt ở local.
+
+Sau mỗi lần sửa hai file nguồn, tạo lại file hợp nhất riêng cho local:
+
+```powershell
+./operations/local/Update-RuntimeEnv.ps1
+```
+
+Script ghi `overlays/local/.runtime.secret.env` (được Git ignore), local ghi đè base.
+Generator và script cấp sync Secret đều đọc file hợp nhất này. Base và overlay EKS không đọc các file env local.
 
 Không cần copy nguyên `.env` của backend: Compose trước đây ánh xạ `DB_PASSWORD` sang `SPRING_DATASOURCE_PASSWORD`, `MAIL_*` sang `SPRING_MAIL_*` và ghép JDBC URL. Manifest hiện đã làm các phép ánh xạ đó. DB name/user nằm trong ConfigMap; không cần lặp chúng trong Secret mẫu.
 

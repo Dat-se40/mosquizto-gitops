@@ -1,0 +1,7 @@
+# Pass to kubectl patch application mosquizto-eks --type=merge --patch-file ...
+# This requests an Argo CD sync. It does not apply workloads directly.
+operation:
+  sync:
+    prune: false
+    syncStrategy:
+      hook: {}

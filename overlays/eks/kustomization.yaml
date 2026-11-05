@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mosquizto-eks
+resources:
+  - ../../base
+  - ../../dependencies
+  - model-config.yaml
+patches:
+  - path: backend.yaml
+  - path: config.yaml
+  - path: public-service.yaml
+  - target:
+      kind: PersistentVolumeClaim
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: mosquizto-gp3
+      - op: add
+        path: /metadata/annotations
+        value:
+          argocd.argoproj.io/sync-options: Prune=false,Delete=false
+images:
+  - name: mosquizto-backend
+    newName: 821278618825.dkr.ecr.us-east-1.amazonaws.com/mosquizto-backend
+    digest: sha256:7aef4eb70349b0759019d5f69fb46a9b2798d84b7cef3b679a6be6335d9c5908

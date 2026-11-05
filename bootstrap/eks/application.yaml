@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mosquizto-eks
+  namespace: argocd
+# No deletion finalizer: deleting this Application must not delete lab data.
+spec:
+  project: mosquizto
+  source:
+    repoURL: https://github.com/Dat-se40/mosquizto-gitops.git
+    targetRevision: main
+    path: overlays/eks
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mosquizto-eks
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff: {duration: 5s, factor: 2, maxDuration: 1m}
+# Enable automated.selfHeal only after the first manual sync and acceptance checks.
