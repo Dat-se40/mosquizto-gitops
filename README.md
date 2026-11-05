@@ -5,6 +5,8 @@ Kubernetes manifests và Kustomize cho backend Mosquizto của đồ án NT548.
 - [Cấu trúc base, mạng và cách cấp cấu hình](base/README.md).
 - [Chạy trên Minikube, kiểm tra API và xử lý lỗi](overlays/local/README.md).
 - [Triển khai EKS qua Argo CD, ECR và ONNX trong image](overlays/eks/README.md).
+- [Hướng dẫn vận hành EKS lab và kết quả nghiệm thu](docs/VAN_HANH_EKS_LAB.md).
+- [Tài liệu và tiến độ](docs/README.md).
 - [Khởi động, dừng và gỡ môi trường local](overlays/local/README.md#9-khởi-động-dừng-và-gỡ-môi-trường-local).
 - [Source backend và Dockerfile](https://github.com/Dat-se40/mosquizto-backend).
 
@@ -46,7 +48,7 @@ Overlay `local` chạy backend, PostgreSQL, Redis, Meilisearch và Qdrant trong 
 
 Kiểm tra thủ công trên Minikube ngày 28–29/10/2026 đã xác nhận cả năm Deployment Ready, Swagger/OpenAPI trả HTTP 200, đăng nhập bằng tài khoản seed thành công qua Postman và username không tồn tại trả HTTP 401. Chưa kiểm thử toàn bộ CRUD, search, embedding hoặc các dịch vụ mail/media bên ngoài.
 
-Overlay `eks` dùng namespace `mosquizto-eks`, bốn dependency trong cluster với PVC gp3, backend một replica và model ONNX trong image ECR pin bằng digest. Secret EKS được cấp riêng ngoài Git; Argo CD theo dõi `overlays/eks` trên `main`. Jenkins tự động cập nhật GitOps và URL public là các chặng tiếp theo. Xem hướng dẫn EKS để biết prerequisites, kiểm chứng và rollback; có manifests không đồng nghĩa đã nghiệm thu deployment.
+Overlay `eks` dùng namespace `mosquizto-eks`, bốn dependency trong cluster với PVC gp3, backend một replica và model ONNX trong image ECR pin bằng digest. Secret EKS được cấp riêng ngoài Git. Bootstrap review chọn nhánh `eks-argocd`; bootstrap mặc định chọn `main` và chỉ dùng khi nhánh đó đã có overlay được duyệt. Đã nghiệm thu sync/self-heal, API, ONNX, giữ dữ liệu và truy cập backend qua Load Balancer trong phiên 04/11/2026; xem [hướng dẫn vận hành](docs/VAN_HANH_EKS_LAB.md) để kiểm tra lại khi mở Lab. Jenkins tự động cập nhật GitOps và demo pipeline end-to-end chưa nghiệm thu.
 
 ## Bắt đầu
 

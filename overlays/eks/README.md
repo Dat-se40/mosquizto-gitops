@@ -1,6 +1,6 @@
 # Triển khai Mosquizto trên EKS cho môi trường lab
 
-Các lệnh PowerShell bên dưới chạy từ **thư mục gốc `mosquizto-gitops`**. Cần cấu hình AWS credentials cho đúng tài khoản và luôn truyền rõ context EKS. Năm dịch vụ chạy trong namespace `mosquizto-eks`; PostgreSQL mới được khởi tạo bằng các migration Flyway hiện có. Jenkins CI tự động và truy cập công khai nằm ngoài chặng này.
+Các lệnh PowerShell bên dưới chạy từ **thư mục gốc `mosquizto-gitops`**. Cần cấu hình AWS credentials cho đúng tài khoản và luôn truyền rõ context EKS. Năm dịch vụ chạy trong namespace `mosquizto-eks`; database mới được khởi tạo bằng các migration Flyway hiện có. Backend hiện có Service LoadBalancer public; Jenkins CI tự động chưa nghiệm thu. Khi mở lại môi trường đã cài, làm theo [hướng dẫn vận hành EKS lab](../../docs/VAN_HANH_EKS_LAB.md) trước, không cài lại toàn bộ theo các bước bên dưới.
 
 ## 1. Điều kiện trước khi triển khai
 
@@ -104,6 +104,6 @@ Dùng tên Job mà script in ra để xem `kubectl logs` và `kubectl wait`. Scr
 
 PVC PostgreSQL 2Gi; Redis, Meilisearch và Qdrant mỗi dịch vụ 1Gi, kiểu RWO. Mỗi dependency có một replica và chiến lược `Recreate`. Đây chưa phải cấu hình HA hoặc cơ chế backup. Chính sách `Retain` giữ lại volume có tính phí sau khi PVC bị xóa, cần người quản lý chủ động khôi phục hoặc dọn. Khi kiểm tra persistence, chỉ tạo lại Pod PostgreSQL rồi so sánh dữ liệu; giữ nguyên PVC.
 
-Tổng requests khởi đầu của năm dịch vụ là 600m CPU và 1088Mi RAM. Cần đo lúc ONNX khởi tạo/suy luận và tính thêm monitoring, Argo CD, Pod hệ thống khi đánh giá tài nguyên. Probe startup/readiness hiện kiểm tra `/v3/api-docs`, chưa đánh giá đầy đủ dependency. Các Service ứng dụng đều là ClusterIP, không tạo Load Balancer công khai.
+Tổng requests khởi đầu của năm dịch vụ là 600m CPU và 1088Mi RAM. Cần đo lúc ONNX khởi tạo/suy luận và tính thêm monitoring, Argo CD, Pod hệ thống khi đánh giá tài nguyên. Probe startup/readiness hiện kiểm tra `/v3/api-docs`, chưa đánh giá đầy đủ dependency. Service backend được patch thành LoadBalancer public bởi `public-service.yaml`; các dependency giữ ClusterIP. Lấy lại hostname sau khi mở Lab và kiểm tra `SERVER_URL` theo hướng dẫn vận hành.
 
 Quay lui bằng cách revert commit GitOps về image digest và cấu hình/model tương thích đã được kiểm chứng, rồi để Argo CD reconcile. Kiểm tra khả năng tương thích ngược của Flyway trước. Quay lui workload không hoàn tác migration database hoặc dữ liệu đã ghi vào search store. Giữ PVC và pin phiên bản image dependency trước khi nâng cấp.
