@@ -22,4 +22,4 @@ patches:
 images:
   - name: mosquizto-backend
     newName: 821278618825.dkr.ecr.us-east-1.amazonaws.com/mosquizto-backend
-    digest: sha256:7aef4eb70349b0759019d5f69fb46a9b2798d84b7cef3b679a6be6335d9c5908
+    digest: sha256:9878dcf990a36039f3cd3b1c6e8948f3b6b7a311e58f91ab4890a73ae5903dd6
